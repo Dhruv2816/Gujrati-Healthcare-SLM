@@ -1,0 +1,47 @@
+# Gujarati Healthcare QA System — Requirements
+# Install with: pip install -r requirements.txt
+
+# Core ML
+torch>=2.1.0
+transformers>=4.40.0
+peft>=0.10.0
+bitsandbytes>=0.43.0
+accelerate>=0.29.0
+trl>=0.8.0
+
+# Unsloth (fast fine-tuning) — install separately on GPU environment
+# pip install "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
+
+# Data & NLP
+datasets>=2.19.0
+sentencepiece>=0.2.0
+indic-nlp-library>=0.91
+pandas>=2.2.0
+numpy>=1.26.0
+scikit-learn>=1.4.0
+tqdm>=4.66.0
+unicodedata2>=15.0.0
+regex>=2024.4.16
+
+# Knowledge Graph
+networkx>=3.3
+matplotlib>=3.8.0
+
+# Vector Store & RAG
+chromadb>=0.5.0
+sentence-transformers>=3.0.0
+langchain>=0.2.0
+langchain-community>=0.2.0
+
+# Evaluation
+sacrebleu>=2.4.0
+rouge-score>=0.1.2
+evaluate>=0.4.0
+
+# UI
+streamlit>=1.35.0
+
+# Utilities
+python-dotenv>=1.0.0
+requests>=2.31.0
+opustools>=1.6.0
