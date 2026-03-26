@@ -1,1 +1,15 @@
 .env
+data/
+models/
+outputs/
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+*.egg-info/
+.venv/
+venv/
+neo4j_data/
+redis_data/
+*.log
+chroma_db*/
