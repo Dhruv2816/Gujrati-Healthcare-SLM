@@ -10,7 +10,6 @@ Usage:
     python main.py --stats               # Show Neo4j + Redis + ChromaDB stats
 """
 import argparse
-import sys
 import json
 
 
@@ -50,7 +49,8 @@ def cmd_ingest_books(args):
     from src.vectordb.chroma_client import ChromaClient
     from src.kg.neo4j_client import Neo4jClient
     from src.kg.entity_extractor import extract_entities
-    import fitz, os
+    import fitz
+    import os
 
     print(f"\n📚 Ingesting books from {BOOKS_DIR}\n{'='*60}")
     
@@ -108,7 +108,7 @@ def cmd_stats(args):
         from src.vectordb.chroma_client import ChromaClient
         chroma = ChromaClient()
         stats = chroma.get_stats()
-        print(f"\n🔷 ChromaDB:")
+        print("\n🔷 ChromaDB:")
         for k, v in stats.items():
             print(f"   {k}: {v}")
     except Exception as e:

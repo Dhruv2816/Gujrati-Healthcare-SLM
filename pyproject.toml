@@ -1,7 +1,7 @@
 [project]
 name = "gujarati-healthcare-slm"
 version = "0.1.0"
-description = "Add your description here"
+description = "A Small Language Model for assisting Health-related questions in Gujarati"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -32,7 +32,9 @@ dependencies = [
     "sentencepiece>=0.2.0",
     "spacy>=3.7.0",
     "streamlit>=1.35.0",
+    "sympy==1.12",
     "torch>=2.1.0",
+    "torchvision>=0.19.1",
     "tqdm>=4.66.0",
     "transformers>=4.40.0",
     "trl>=0.8.0",
