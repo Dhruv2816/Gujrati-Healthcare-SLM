@@ -1,8 +1,8 @@
 """src/kg/neo4j_client.py — Neo4j driver & CRUD helpers for the Medical Knowledge Graph."""
+
 from __future__ import annotations
-from typing import Optional
 from neo4j import GraphDatabase, Driver
-from src.config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
+from src.config import Config
 
 
 class Neo4jClient:
@@ -10,14 +10,20 @@ class Neo4jClient:
 
     def __init__(
         self,
-        uri: str = NEO4J_URI,
-        user: str = NEO4J_USER,
-        password: str = NEO4J_PASSWORD,
+        config: Config | None = None,
     ):
-        self._driver: Driver = GraphDatabase.driver(uri, auth=(user, password))
+        self.config = config or Config()
+        self.uri = self.config.NEO4J_URI
+        self.user = self.config.NEO4J_USER
+        self.password = self.config.NEO4J_PASSWORD
+
+        self._driver: Driver = GraphDatabase.driver(
+            self.uri,
+            auth=(self.user, self.password),
+        )
         self._create_constraints()
 
-    # ── lifecycle ─────────────────────────────────────────
+    #  lifecycle
     def close(self):
         self._driver.close()
 
@@ -35,7 +41,7 @@ class Neo4jClient:
         except Exception:
             return False
 
-    # ── schema setup ──────────────────────────────────────
+    #  schema setup
     def _create_constraints(self):
         queries = [
             "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Disease)   REQUIRE n.name IS UNIQUE",
@@ -48,7 +54,7 @@ class Neo4jClient:
             for q in queries:
                 s.run(q)
 
-    # ── write ────────────────────────────────────────────
+    #  write
     def upsert_entity(self, name: str, label: str, source: str = "") -> None:
         """Merge (upsert) a medical entity node."""
         query = (
@@ -82,7 +88,7 @@ class Neo4jClient:
                 source=source,
             )
 
-    # ── read ─────────────────────────────────────────────
+    #  read ─
     def query_related(self, entity_name: str, depth: int = 2) -> dict:
         """
         Return all nodes and relationships within `depth` hops of `entity_name`.

@@ -1,8 +1,6 @@
 """src/kg/entity_extractor.py — Medical NER using spaCy + custom Gujarati/English keyword rules."""
 from __future__ import annotations
-import re
 from dataclasses import dataclass, field
-from typing import Optional
 
 try:
     import spacy

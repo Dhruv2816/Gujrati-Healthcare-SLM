@@ -2,12 +2,14 @@
 app/streamlit_app.py — Gujarati Healthcare Assistant (GraphRAG Edition)
 Run: streamlit run app/streamlit_app.py
 """
+
 import sys
 import os
+
 # Add project root to path so `src` imports work
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 import streamlit as st
+
 
 st.set_page_config(
     page_title="Gujarati Healthcare Assistant",
@@ -16,8 +18,9 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ─── CSS ───────────────────────────────────────────────────────────────────────
-st.markdown("""
+#  CSS
+st.markdown(
+    """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
@@ -56,20 +59,23 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
                      font-weight:600 !important; width:100%; transition:transform .2s,box-shadow .2s !important; }
 .stButton > button:hover { transform:translateY(-2px) !important; box-shadow:0 6px 20px rgba(99,102,241,.4) !important; }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 
-# ─── Load pipeline (cached singleton) ─────────────────────────────────────────
+#  Load pipeline (cached singleton)
 @st.cache_resource(show_spinner="🔄 Loading Gujarati Healthcare AI…")
 def load_pipeline():
     try:
         from src.pipeline.inference import MedicalPipeline
+
         return MedicalPipeline()
     except Exception as e:
-        return None, str(e)
+        return str(e)
 
 
-# ─── Sidebar ──────────────────────────────────────────────────────────────────
+# Sidebar
 with st.sidebar:
     st.markdown("## ⚙️ Settings")
     top_k = st.slider("Retrieved Documents (top-k)", 1, 10, 5)
@@ -92,22 +98,28 @@ with st.sidebar:
             st.session_state.query_input = ex
 
     st.markdown("---")
-    st.markdown("""
+    st.markdown(
+        """
     <div style="color:#64748b;font-size:.8rem;text-align:center;">
     🏥 Gujarati Healthcare SLM<br>
     Qwen 2.5 3B · QLoRA · GraphRAG<br>
     Neo4j · Redis · ChromaDB
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
 
-# ─── Main ─────────────────────────────────────────────────────────────────────
-st.markdown("""
+#  Main
+st.markdown(
+    """
 <div class="hero">
   <h1>🏥 ગુજરાતી આરોગ્ય સહાયક</h1>
   <p>Gujarati Healthcare Assistant · Qwen 2.5 3B + QLoRA + GraphRAG (Neo4j + Redis + ChromaDB)</p>
 </div>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Model", "Qwen 2.5 3B")
@@ -124,64 +136,91 @@ query = st.text_area(
     placeholder="ઉદા. 'ડાયાબિટીઝ ના લક્ષણો?' / 'What are diabetes symptoms?'",
     key="query_main",
 )
-ask_btn = st.button("🔍 Ask / પૂછો", type="primary")
+ask_btn = st.button("🔍 Ask | પૂછો", type="primary")
 
-if ask_btn and query.strip():
+if ask_btn and query and query.strip():
     pipeline = load_pipeline()
-    if pipeline is None:
-        st.error("❌ Pipeline failed to load.")
+    if isinstance(pipeline, str):
+        st.error(f"❌ Pipeline failed to load. {pipeline}")
     else:
         with st.spinner("🤔 Thinking…"):
-            result = pipeline.answer(query.strip(), top_k=top_k, max_new_tokens=max_tokens)
+            result = pipeline.answer(
+                query.strip(), top_k=top_k, max_new_tokens=max_tokens
+            )
 
         # Cache badge
         if result.get("cache_hit"):
-            st.markdown('<span class="cache-badge">⚡ Redis Cache Hit</span>', unsafe_allow_html=True)
+            st.markdown(
+                '<span class="cache-badge">⚡ Redis Cache Hit</span>',
+                unsafe_allow_html=True,
+            )
 
         # Answer
         if result.get("is_emergency"):
-            st.markdown(f"""
-            <div class="emergency-card">
-              <h3>⚠️ EMERGENCY — તાત્કાલિક સ્થિતિ</h3>
-              <p>{result['answer'].replace(chr(10), '<br>')}</p>
-            </div>""", unsafe_allow_html=True)
+            st.markdown(
+                f"""
+                <div class="emergency-card">
+                <h3>⚠️ EMERGENCY — તાત્કાલિક સ્થિતિ</h3>
+                <p>{result["answer"].replace(chr(10), "<br>")}</p>
+                </div>""",
+                unsafe_allow_html=True,
+            )
         else:
-            st.markdown(f"""
-            <div class="answer-card">
-              <h3>🏥 Gujarati Healthcare Answer</h3>
-              <div class="answer-text">{result['answer'].replace(chr(10), '<br>')}</div>
-            </div>""", unsafe_allow_html=True)
+            st.markdown(
+                f"""
+                <div class="answer-card">
+                <h3>🏥 Gujarati Healthcare Answer</h3>
+                <div class="answer-text">{result["answer"].replace(chr(10), "<br>")}</div>
+                </div>""",
+                unsafe_allow_html=True,
+            )
 
         # Knowledge Graph insights
         if show_graph:
             kg = result.get("kg_results", {})
-            if any(kg.get(k) for k in ("possible_diseases", "suggested_treatments", "suggested_drugs")):
+            if any(
+                kg.get(k)
+                for k in (
+                    "possible_diseases",
+                    "suggested_treatments",
+                    "suggested_drugs",
+                )
+            ):
                 with st.expander("🕸️ Knowledge Graph Insights (Neo4j)", expanded=True):
                     c1, c2, c3 = st.columns(3)
                     with c1:
                         st.markdown("**Diseases**")
                         for d in kg.get("possible_diseases", [])[:6]:
-                            st.markdown(f'<span class="kg-badge">{d}</span>', unsafe_allow_html=True)
+                            st.markdown(
+                                f'<span class="kg-badge">{d}</span>',
+                                unsafe_allow_html=True,
+                            )
                     with c2:
                         st.markdown("**Treatments**")
                         for t in kg.get("suggested_treatments", [])[:6]:
-                            st.markdown(f'<span class="kg-badge">{t}</span>', unsafe_allow_html=True)
+                            st.markdown(
+                                f'<span class="kg-badge">{t}</span>',
+                                unsafe_allow_html=True,
+                            )
                     with c3:
                         st.markdown("**Drugs**")
                         for dr in kg.get("suggested_drugs", [])[:6]:
-                            st.markdown(f'<span class="kg-badge">{dr}</span>', unsafe_allow_html=True)
+                            st.markdown(
+                                f'<span class="kg-badge">{dr}</span>',
+                                unsafe_allow_html=True,
+                            )
 
         # Vector passages
         if show_context and result.get("vector_results"):
             with st.expander("📚 Retrieved Medical Book Passages (ChromaDB)"):
                 for i, doc in enumerate(result["vector_results"][:3]):
                     st.markdown(
-                        f'<div class="context-item">[{i+1}] <b>{doc["source"]}</b> '
-                        f'(score={doc["score"]:.2f})<br>{doc["text"][:300]}…</div>',
+                        f'<div class="context-item">[{i + 1}] <b>{doc["source"]}</b> '
+                        f"(score={doc['score']:.2f})<br>{doc['text'][:300]}…</div>",
                         unsafe_allow_html=True,
                     )
 
-        st.info("ℹ️ **Disclaimer:** Educational purposes only. Always consult a doctor.")
+    st.info("ℹ️ **Disclaimer:** Educational purposes only. Always consult a doctor.")
 
-elif ask_btn and not query.strip():
+elif ask_btn and query and not query.strip():
     st.warning("⚠️ Please type a question first.")
