@@ -1,11 +1,10 @@
 """src/cache/redis_client.py — Redis-backed query cache."""
-
 from __future__ import annotations
 import hashlib
 import json
 from typing import Optional
 import redis
-from src.config import Config
+from src.config import REDIS_HOST, REDIS_PORT, REDIS_PASSWORD, REDIS_CACHE_TTL
 
 
 def _make_key(query: str) -> str:
@@ -17,17 +16,14 @@ class RedisClient:
 
     def __init__(
         self,
-        config: Config | None = None,
+        host: str = REDIS_HOST,
+        port: int = REDIS_PORT,
+        password: str = REDIS_PASSWORD,
     ):
-        self.config = config or Config()
-        self.host: str = self.config.REDIS_HOST
-        self.port: int = self.config.REDIS_PORT
-        self.password: str = self.config.REDIS_PASSWORD
-
         self._r = redis.Redis(
-            host=self.host,
-            port=self.port,
-            password=self.password or None,
+            host=host,
+            port=port,
+            password=password or None,
             decode_responses=True,
         )
 
@@ -47,10 +43,8 @@ class RedisClient:
             pass
         return None
 
-    def set_cache(self, query: str, result: dict, ttl: int | None = None) -> None:
+    def set_cache(self, query: str, result: dict, ttl: int = REDIS_CACHE_TTL) -> None:
         """Cache a result dict with TTL (seconds)."""
-        if ttl is None:
-            ttl = self.config.REDIS_CACHE_TTL
         try:
             self._r.setex(_make_key(query), ttl, json.dumps(result, ensure_ascii=False))
         except Exception:

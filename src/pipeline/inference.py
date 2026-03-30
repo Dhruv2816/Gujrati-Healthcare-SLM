@@ -1,22 +1,22 @@
 """src/pipeline/inference.py — End-to-end Gujarati Healthcare QA pipeline."""
-
 from __future__ import annotations
 import os
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 from peft import PeftModel
+
+from src.config import (
+    HF_TOKEN,
+    ADAPTER_PATH,
+    BASE_MODEL_ID,
+    SYSTEM_PROMPT,
+    EMERGENCY_RESPONSE,
+)
 from src.retriever.graph_rag import GraphRAGRetriever, is_emergency
 from src.cache.redis_client import RedisClient
 
 
-from src.config import (
-    Config,
-    SYSTEM_PROMPT,
-    EMERGENCY_RESPONSE,
-)
-
-
-def _load_model(config: Config):
+def _load_model():
     """Load Qwen base + LoRA adapter with 4-bit quantization."""
     device = "cuda" if torch.cuda.is_available() else "cpu"
     bnb = (
@@ -29,29 +29,31 @@ def _load_model(config: Config):
         if device == "cuda"
         else None
     )
-    tok_path = (
-        config.ADAPTER_PATH
-        if os.path.exists(config.ADAPTER_PATH)
-        else config.BASE_MODEL_ID
-    )
+    
+    # Check if adapter exists, else load base model tokenizer
+    tok_path = ADAPTER_PATH if os.path.exists(ADAPTER_PATH) else BASE_MODEL_ID
+    
     tokenizer = AutoTokenizer.from_pretrained(
-        tok_path,
-        trust_remote_code=True,
-        token=config.HF_TOKEN,
+        tok_path, 
+        trust_remote_code=True, 
+        token=HF_TOKEN
     )
+    
     base = AutoModelForCausalLM.from_pretrained(
-        config.BASE_MODEL_ID,
+        BASE_MODEL_ID,
         quantization_config=bnb,
         device_map="auto" if device == "cuda" else "cpu",
         trust_remote_code=True,
-        token=config.HF_TOKEN,
+        token=HF_TOKEN,
     )
-    if os.path.exists(os.path.join(config.ADAPTER_PATH, "adapter_config.json")):
-        model = PeftModel.from_pretrained(base, config.ADAPTER_PATH)
-        print(f"✅ Fine-tuned model loaded (LoRA from {config.ADAPTER_PATH})")
+    
+    if os.path.exists(os.path.join(ADAPTER_PATH, "adapter_config.json")):
+        model = PeftModel.from_pretrained(base, ADAPTER_PATH)
+        print(f"✅ Fine-tuned model loaded (LoRA from {ADAPTER_PATH})")
     else:
         model = base
         print("⚠️  LoRA adapter not found — using base model.")
+        
     model.eval()
     return tokenizer, model
 
@@ -62,9 +64,8 @@ class MedicalPipeline:
     Caches both retrieval context and final answers in Redis.
     """
 
-    def __init__(self, config: Config | None = None):
-        self.config = config or Config()
-        self.tokenizer, self.model = _load_model(self.config)
+    def __init__(self):
+        self.tokenizer, self.model = _load_model()
         self.retriever = GraphRAGRetriever()
         self._answer_cache = RedisClient()
 
@@ -88,7 +89,7 @@ class MedicalPipeline:
                 "cache_hit": False,
             }
 
-        # ❷ Answer cache check (full answer, not just retrieval)
+        # ❷ Answer cache check
         cache_key = f"answer:{query}"
         cached_answer = self._answer_cache.get_cached(cache_key)
         if cached_answer:
@@ -111,6 +112,7 @@ class MedicalPipeline:
             messages, tokenize=False, add_generation_prompt=True
         )
         inputs = self.tokenizer(prompt_text, return_tensors="pt").to(self.model.device)
+        
         with torch.no_grad():
             outputs = self.model.generate(
                 **inputs,
@@ -121,6 +123,7 @@ class MedicalPipeline:
                 repetition_penalty=1.1,
                 pad_token_id=self.tokenizer.eos_token_id,
             )
+            
         answer_text = self.tokenizer.decode(
             outputs[0][inputs["input_ids"].shape[1] :], skip_special_tokens=True
         )
