@@ -16,46 +16,12 @@ from src.retriever.graph_rag import GraphRAGRetriever, is_emergency
 from src.cache.redis_client import RedisClient
 
 
+import requests
+
 def _load_model():
-    """Load Qwen base + LoRA adapter with 4-bit quantization."""
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    bnb = (
-        BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.float16,
-            bnb_4bit_use_double_quant=True,
-        )
-        if device == "cuda"
-        else None
-    )
-    
-    # Check if adapter exists, else load base model tokenizer
-    tok_path = ADAPTER_PATH if os.path.exists(ADAPTER_PATH) else BASE_MODEL_ID
-    
-    tokenizer = AutoTokenizer.from_pretrained(
-        tok_path, 
-        trust_remote_code=True, 
-        token=HF_TOKEN
-    )
-    
-    base = AutoModelForCausalLM.from_pretrained(
-        BASE_MODEL_ID,
-        quantization_config=bnb,
-        device_map="auto" if device == "cuda" else "cpu",
-        trust_remote_code=True,
-        token=HF_TOKEN,
-    )
-    
-    if os.path.exists(os.path.join(ADAPTER_PATH, "adapter_config.json")):
-        model = PeftModel.from_pretrained(base, ADAPTER_PATH)
-        print(f"✅ Fine-tuned model loaded (LoRA from {ADAPTER_PATH})")
-    else:
-        model = base
-        print("⚠️  LoRA adapter not found — using base model.")
-        
-    model.eval()
-    return tokenizer, model
+    """Bypassed: LLM backend is now handled independently via Ollama C++ Engine API."""
+    print("⏳ Routing LLM logic to fast local Ollama C++ API server...")
+    return None, None
 
 
 class MedicalPipeline:
@@ -100,33 +66,27 @@ class MedicalPipeline:
         retrieval = self.retriever.retrieve(query, top_k=top_k)
         context = retrieval["combined_context"]
 
-        # ❹ LLM generation
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": f"Medical Textbook Context:\n{context}\n\nQuery: {query}",
-            },
-        ]
-        prompt_text = self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
-        inputs = self.tokenizer(prompt_text, return_tensors="pt").to(self.model.device)
-        
-        with torch.no_grad():
-            outputs = self.model.generate(
-                **inputs,
-                max_new_tokens=max_new_tokens,
-                temperature=0.6,
-                do_sample=True,
-                top_p=0.9,
-                repetition_penalty=1.1,
-                pad_token_id=self.tokenizer.eos_token_id,
+        # ❹ LLM generation via Ollama Chat Endpoint
+        try:
+            response = requests.post(
+                "http://localhost:11434/api/chat",
+                json={
+                    "model": "gujarati_healthcare_ai",
+                    "messages": [
+                        {"role": "system", "content": "You are a Professional Gujarati Healthcare Assistant. Follow the example below:\n\nExample User Question: 'મને તાવ છે'\nExample Assistant Answer: 'તમને તાવ છે તો આરામ કરો અને પુષ્કળ પાણી પીવો.'"},
+                        {"role": "user", "content": f"Medical Context: {context}\n\nUser Question: {query}\n\nGujarati Answer (Direct answer only, DO NOT repeat the question):"}
+                    ],
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.1,
+                        "stop": ["Question:", "સવાલ:", "Context:"],
+                        "num_predict": max_new_tokens
+                    }
+                }
             )
-            
-        answer_text = self.tokenizer.decode(
-            outputs[0][inputs["input_ids"].shape[1] :], skip_special_tokens=True
-        )
+            answer_text = response.json().get("message", {}).get("content", "⚠️ Error generating response.").strip()
+        except Exception as e:
+            answer_text = f"Ollama API Error: {str(e)} - Make sure Ollama daemon is running locally."
 
         result = {
             "query": query,

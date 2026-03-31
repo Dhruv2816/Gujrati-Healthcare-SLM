@@ -8,40 +8,58 @@ try:
 except Exception:
     _nlp = None  # Graceful fallback if spaCy not installed
 
-# ── Medical keyword dictionaries ─────────────────────────────────────────────
-DISEASES = {
-    "diabetes", "hypertension", "tuberculosis", "tb", "malaria", "dengue",
-    "typhoid", "hepatitis", "pneumonia", "asthma", "cancer", "stroke",
-    "arthritis", "anemia", "cholera", "cholesterol", "obesity", "thyroid",
-    "alzheimer", "parkinson", "epilepsy", "kidney disease", "liver disease",
-    # Gujarati
-    "ડાયાબિટ", "ડાયાબીટ", "ટ્યૂબર્ક્યુલોસિસ", "કેન્સર", "સ્ટ્રોક",
+# Canonical English names used in Neo4j Knowledge Graph
+DISEASES_MAP = {
+    "diabetes": "diabetes", "hypertension": "hypertension", "tuberculosis": "tuberculosis", "tb": "tuberculosis",
+    "malaria": "malaria", "dengue": "dengue", "typhoid": "typhoid", "hepatitis": "hepatitis",
+    "pneumonia": "pneumonia", "asthma": "asthma", "cancer": "cancer", "stroke": "stroke",
+    "arthritis": "arthritis", "anemia": "anemia", "cholera": "cholera", "cholesterol": "cholesterol",
+    "obesity": "obesity", "thyroid": "thyroid", "alzheimer": "alzheimer", "parkinson": "parkinson",
+    "epilepsy": "epilepsy", "kidney disease": "kidney disease", "liver disease": "liver disease",
+    # Gujarati -> English
+    "ડાયાબિટ": "diabetes", "ડાયાબીટ": "diabetes", "ટ્યૂબર્ક્યુલોસિસ": "tuberculosis", 
+    "કેન્સર": "cancer", "સ્ટ્રોક": "stroke", "અસ્થમા": "asthma", 
+    "મેલેરિયા": "malaria", "ડેન્ગ્યુ": "dengue", "ટાઈફોઈડ": "typhoid", 
+    "ન્યુમોનિયા": "pneumonia", "હાઈપરટેન્શન": "hypertension", "લોહીનું દબાણ": "hypertension",
 }
 
-SYMPTOMS = {
-    "fever", "headache", "cough", "fatigue", "vomiting", "nausea", "diarrhea",
-    "chest pain", "shortness of breath", "dizziness", "weakness", "swelling",
-    "rash", "pain", "bleeding", "seizure", "confusion", "blurred vision",
-    # Gujarati
-    "તાવ", "માથાનો દુખાવો", "ઉલ્ટી", "ઝાડા", "ખાંસી", "થાક", "ચક્કર",
+SYMPTOMS_MAP = {
+    "fever": "fever", "headache": "headache", "cough": "cough", "fatigue": "fatigue",
+    "vomiting": "vomiting", "nausea": "nausea", "diarrhea": "diarrhea",
+    "chest pain": "chest pain", "shortness of breath": "shortness of breath",
+    "dizziness": "dizziness", "weakness": "weakness", "swelling": "swelling",
+    "rash": "rash", "pain": "pain", "bleeding": "bleeding", "seizure": "seizure",
+    "confusion": "confusion", "blurred vision": "blurred vision",
+    # Gujarati -> English
+    "તાવ": "fever", "માથાનો દુખાવો": "headache", "ઉલ્ટી": "vomiting", 
+    "ઝાડા": "diarrhea", "ખાંસી": "cough", "થાક": "fatigue", "ચક્કર": "dizziness",
+    "છાતીમાં દુખાવો": "chest pain", "શ્વાસ લેવામાં તકલીફ": "shortness of breath", 
+    "શ્વાસ ફૂલવો": "shortness of breath", "શરદી": "cough", "દુખાવો": "pain",
 }
 
-DRUGS = {
-    "paracetamol", "ibuprofen", "aspirin", "amoxicillin", "metformin",
-    "insulin", "atenolol", "amlodipine", "omeprazole", "antibiotics",
-    "antibiotic", "antiviral", "vaccine", "metronidazole", "azithromycin",
+DRUGS_MAP = {
+    "paracetamol": "paracetamol", "ibuprofen": "ibuprofen", "aspirin": "aspirin", 
+    "amoxicillin": "amoxicillin", "metformin": "metformin",
+    "insulin": "insulin", "atenolol": "atenolol", "amlodipine": "amlodipine", 
+    "omeprazole": "omeprazole", "antibiotics": "antibiotics",
+    "antibiotic": "antibiotics", "antiviral": "antiviral", "vaccine": "vaccine", 
+    "metronidazole": "metronidazole", "azithromycin": "azithromycin",
 }
 
-TREATMENTS = {
-    "surgery", "chemotherapy", "dialysis", "physiotherapy", "radiation",
-    "immunotherapy", "blood transfusion", "oxygen therapy", "transplant",
-    "bypass", "catheterization", "endoscopy", "biopsy",
+TREATMENTS_MAP = {
+    "surgery": "surgery", "chemotherapy": "chemotherapy", "dialysis": "dialysis", 
+    "physiotherapy": "physiotherapy", "radiation": "radiation",
+    "immunotherapy": "immunotherapy", "blood transfusion": "blood transfusion", 
+    "oxygen therapy": "oxygen therapy", "transplant": "transplant",
+    "bypass": "bypass", "catheterization": "catheterization", "endoscopy": "endoscopy", "biopsy": "biopsy",
 }
 
-BODY_PARTS = {
-    "heart", "lung", "liver", "kidney", "brain", "stomach", "pancreas",
-    "intestine", "spleen", "thyroid", "bone", "muscle", "nerve", "skin",
-    "eye", "ear", "nose", "throat", "spine",
+BODY_PARTS_MAP = {
+    "heart": "heart", "lung": "lung", "liver": "liver", "kidney": "kidney", 
+    "brain": "brain", "stomach": "stomach", "pancreas": "pancreas",
+    "intestine": "intestine", "spleen": "spleen", "thyroid": "thyroid", 
+    "bone": "bone", "muscle": "muscle", "nerve": "nerve", "skin": "skin",
+    "eye": "eye", "ear": "ear", "nose": "nose", "throat": "throat", "spine": "spine",
 }
 
 
@@ -66,9 +84,18 @@ class ExtractedEntities:
         return any([self.diseases, self.symptoms, self.drugs, self.treatments, self.body_parts])
 
 
-def _keyword_match(text: str, keyword_set: set) -> list[str]:
+def _keyword_match(text: str, keyword_map: dict) -> list[str]:
     text_lower = text.lower()
-    return [kw for kw in keyword_set if kw.lower() in text_lower]
+    # Sort by length descending to match longest phrases first (greedy)
+    sorted_kws = sorted(keyword_map.keys(), key=len, reverse=True)
+    matches = []
+    found_text = text_lower
+    for kw in sorted_kws:
+        if kw.lower() in found_text:
+            matches.append(keyword_map[kw])
+            # Optional: remove kw from found_text to prevent double counting
+            # found_text = found_text.replace(kw.lower(), " ")
+    return matches
 
 
 def extract_entities(text: str) -> ExtractedEntities:
@@ -77,11 +104,11 @@ def extract_entities(text: str) -> ExtractedEntities:
     Uses spaCy for English NER + keyword matching for both languages.
     """
     result = ExtractedEntities(
-        diseases=_keyword_match(text, DISEASES),
-        symptoms=_keyword_match(text, SYMPTOMS),
-        drugs=_keyword_match(text, DRUGS),
-        treatments=_keyword_match(text, TREATMENTS),
-        body_parts=_keyword_match(text, BODY_PARTS),
+        diseases=_keyword_match(text, DISEASES_MAP),
+        symptoms=_keyword_match(text, SYMPTOMS_MAP),
+        drugs=_keyword_match(text, DRUGS_MAP),
+        treatments=_keyword_match(text, TREATMENTS_MAP),
+        body_parts=_keyword_match(text, BODY_PARTS_MAP),
     )
 
     # Augment with spaCy NER (English text only)

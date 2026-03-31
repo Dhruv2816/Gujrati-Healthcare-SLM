@@ -48,7 +48,8 @@ class ChromaClient:
     ):
         os.makedirs(persist_dir, exist_ok=True)
         self._client = chromadb.PersistentClient(path=persist_dir)
-        self._embed_fn = SentenceTransformerEmbeddingFunction(model_name=embed_model)
+        # Force CPU to save scarce VRAM exclusively for the LLM
+        self._embed_fn = SentenceTransformerEmbeddingFunction(model_name=embed_model, device="cpu")
         self._collection = self._client.get_or_create_collection(
             name=collection_name,
             embedding_function=self._embed_fn,

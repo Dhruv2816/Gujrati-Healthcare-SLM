@@ -38,6 +38,7 @@ CHROMA_COLLECTION = "medical_books"
 EMERGENCY_KEYWORDS = [
     "heart attack", "stroke", "unconscious", "bleeding", "poisoning",
     "overdose", "chest pain", "collapse", "ઇમર્જન્સી", "ઝેર", "ગંભીર",
+    "છાતીમાં દુખાવો", "શ્વાસ લેવામાં તકલીફ", "ખૂબ તાવ", "બેભાન",
     "emergency", "severe", "breathing difficulty", "not breathing",
 ]
 

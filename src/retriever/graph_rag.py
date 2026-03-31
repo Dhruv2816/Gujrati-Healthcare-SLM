@@ -12,7 +12,12 @@ from src.cache.redis_client import RedisClient
 
 def is_emergency(query: str) -> bool:
     q = query.lower()
-    return any(kw.lower() in q for kw in EMERGENCY_KEYWORDS)
+    for kw in EMERGENCY_KEYWORDS:
+        # If it's a phrase, check if all words are present (more robust for Gujarati)
+        words = kw.lower().split()
+        if all(w in q for w in words):
+            return True
+    return False
 
 
 class GraphRAGRetriever:
@@ -62,18 +67,28 @@ class GraphRAGRetriever:
 
         # ❷ Entity extraction
         entities = extract_entities(query)
-        primary_entity = (
-            entities.diseases or entities.symptoms or entities.drugs or [None]
-        )[0]
 
-        # ❸ Neo4j graph traversal
-        kg_results: dict = {}
-        if self._neo4j and primary_entity:
-            try:
-                kg_results = self._neo4j.query_related(primary_entity)
-            except Exception as e:
-                print(f"⚠️  Neo4j query failed: {e}")
-                kg_results = {"matched_entities": [primary_entity]}
+        # ❸ Neo4j graph traversal (all extracted entities)
+        kg_results = {"matched_entities": [], "possible_diseases": [], "suggested_drugs": [], "symptoms": [], "suggested_treatments": []}
+        all_to_query = list(dict.fromkeys(entities.diseases + entities.symptoms + entities.drugs))
+        
+        if self._neo4j:
+            for entity in all_to_query[:5]: # Query top 5 entities to avoid noise
+                try:
+                    res = self._neo4j.query_related(entity)
+                    kg_results["matched_entities"].append(entity)
+                    if res:
+                        kg_results["possible_diseases"].extend(res.get("possible_diseases", []))
+                        kg_results["suggested_drugs"].extend(res.get("suggested_drugs", []))
+                        kg_results["symptoms"].extend(res.get("symptoms", []))
+                        kg_results["suggested_treatments"].extend(res.get("suggested_treatments", []))
+                except Exception as e:
+                    print(f"⚠️  Neo4j query failed for {entity}: {e}")
+
+        # Deduplicate KG results
+        for k in kg_results:
+            if isinstance(kg_results[k], list):
+                kg_results[k] = list(dict.fromkeys(kg_results[k]))
 
         # ❹ ChromaDB semantic search
         vector_results: list[dict] = []
@@ -104,34 +119,51 @@ class GraphRAGRetriever:
 def _build_context(vector_results: list[dict], kg_results: dict, entities) -> str:
     parts = []
 
-    # Vector (textbook passages)
+    # Extract target english keywords (diseases, symptoms, drugs) from user Gujarati query
+    target_keywords = set()
+    for lst in [entities.diseases, entities.symptoms, entities.drugs]:
+        if lst:
+            target_keywords.update([kw.lower() for kw in lst])
+
+    # Filter vector passages strictly so we DON'T feed garbage/unrelated context to the LLM
+    valid_vectors = []
     if vector_results:
-        parts.append("## Relevant Medical Textbook Passages")
-        for i, r in enumerate(vector_results[:5], 1):
-            parts.append(
-                f"[{i}] ({r['source']}, relevance={r['score']:.2f})\n{r['text'][:400]}"
-            )
+        for r in vector_results:
+            text_lower = r['text'].lower()
+            # Strict verification: chunk must contain the keyword, or if no keyword found, we pass them anyway
+            if not target_keywords or any(kw in text_lower for kw in target_keywords):
+                valid_vectors.append(r)
+
+    # FALLBACK: If strict filter yields nothing, take the top 2 semantic results anyway
+    # to avoid giving the LLM 'Empty Context' which leads to echoing.
+    if not valid_vectors and vector_results:
+        valid_vectors = vector_results[:2]
+
+    if valid_vectors:
+        parts.append("માહિતી (Medical Info):")
+        valid_count = 0
+        for r in valid_vectors:
+            # Skip TOC/Index garbage with dots like (. . . .) or too short
+            if ". . ." in r['text'] or r['text'].count('.') > 15:
+                continue
+            parts.append(f"- {r['text'][:400]}")
+            valid_count += 1
+            if valid_count >= 2: break
 
     # KG structured facts
     if kg_results:
-        parts.append("\n## Medical Knowledge Graph Context")
+        kg_data = []
         if kg_results.get("possible_diseases"):
-            parts.append(
-                f"Related Diseases: {', '.join(kg_results['possible_diseases'][:8])}"
-            )
+            kg_data.append(f"Diseases: {', '.join(kg_results['possible_diseases'][:5])}")
         if kg_results.get("suggested_drugs"):
-            parts.append(
-                f"Common Drugs: {', '.join(kg_results['suggested_drugs'][:8])}"
-            )
+            kg_data.append(f"Drugs: {', '.join(kg_results['suggested_drugs'][:5])}")
         if kg_results.get("symptoms"):
-            parts.append(
-                f"Associated Symptoms: {', '.join(kg_results['symptoms'][:8])}"
-            )
-        if kg_results.get("suggested_treatments"):
-            parts.append(
-                f"Treatments: {', '.join(kg_results['suggested_treatments'][:8])}"
-            )
+            kg_data.append(f"Symptoms: {', '.join(kg_results['symptoms'][:5])}")
+        
+        if kg_data:
+            parts.append("GRAPH KNOWLEDGE:")
+            parts.append("\n".join(kg_data))
 
     return (
-        "\n\n".join(parts) if parts else "No relevant context found in medical books."
+        "\n\n".join(parts) if parts else "No relevant context found."
     )
