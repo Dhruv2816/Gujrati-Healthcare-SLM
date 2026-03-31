@@ -7,32 +7,53 @@ from dotenv import load_dotenv
 _ROOT = Path(__file__).parent.parent
 load_dotenv(_ROOT / ".env")
 
-# ── Hugging Face ───────────────────────────────────────────
-HF_TOKEN: str = os.getenv("HF_TOKEN", "")
+from dataclasses import dataclass
 
-# ── Neo4j ─────────────────────────────────────────────────
-NEO4J_URI: str = os.getenv("NEO4J_URI", "bolt://localhost:7687")
-NEO4J_USER: str = os.getenv("NEO4J_USER", "neo4j")
-NEO4J_PASSWORD: str = os.getenv("NEO4J_PASSWORD", "gujarati_health_neo4j")
+@dataclass
+class Config:
+    # ── Hugging Face ───────────────────────────────────────────
+    HF_TOKEN: str = os.getenv("HF_TOKEN", "")
 
-# ── Redis ─────────────────────────────────────────────────
-REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
-REDIS_PORT: int = int(os.getenv("REDIS_PORT", 6380))
-REDIS_PASSWORD: str = os.getenv("REDIS_PASSWORD", "gujarati_health_redis")
-REDIS_CACHE_TTL: int = int(os.getenv("REDIS_CACHE_TTL", 3600))
+    # ── Neo4j ─────────────────────────────────────────────────
+    NEO4J_URI: str = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+    NEO4J_USER: str = os.getenv("NEO4J_USER", "neo4j")
+    NEO4J_PASSWORD: str = os.getenv("NEO4J_PASSWORD", "gujarati_health_neo4j")
 
-# ── Paths ─────────────────────────────────────────────────
-DATA_DIR = _ROOT / "data"
-BOOKS_DIR = DATA_DIR / "books"
-CHROMA_DIR = DATA_DIR / "chroma_db_books"
-MODELS_DIR = _ROOT / "models"
-OUTPUTS_DIR = _ROOT / "outputs"
+    # ── Redis ─────────────────────────────────────────────────
+    REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
+    REDIS_PORT: int = int(os.getenv("REDIS_PORT", 6379)) # Standard Redis port
+    REDIS_PASSWORD: str = os.getenv("REDIS_PASSWORD", "gujarati_health_redis")
+    REDIS_CACHE_TTL: int = int(os.getenv("REDIS_CACHE_TTL", 3600))
 
-ADAPTER_PATH = str(MODELS_DIR / "qwen_gu_health_lora")
-BASE_MODEL_ID = "Qwen/Qwen2.5-3B-Instruct"
-# Medium size (~1.1 GB): Better than MiniLM, won't crash like e5-large
-EMBED_MODEL_ID = "intfloat/multilingual-e5-base"
-CHROMA_COLLECTION = "medical_books"
+    # ── Paths ─────────────────────────────────────────────────
+    DATA_DIR = _ROOT / "data"
+    BOOKS_DIR = DATA_DIR / "books"
+    CHROMA_DIR = DATA_DIR / "chroma_db_books"
+    MODELS_DIR = _ROOT / "models"
+    OUTPUTS_DIR = _ROOT / "outputs"
+
+    ADAPTER_PATH = str(MODELS_DIR / "qwen_gu_health_lora")
+    BASE_MODEL_ID = "Qwen/Qwen2.5-3B-Instruct"
+    EMBED_MODEL_ID = "intfloat/multilingual-e5-base"
+    CHROMA_COLLECTION = "medical_books"
+
+# Top-level exports for compatibility with current code
+_cfg = Config()
+HF_TOKEN = _cfg.HF_TOKEN
+NEO4J_URI = _cfg.NEO4J_URI
+NEO4J_USER = _cfg.NEO4J_USER
+NEO4J_PASSWORD = _cfg.NEO4J_PASSWORD
+REDIS_HOST = _cfg.REDIS_HOST
+REDIS_PORT = _cfg.REDIS_PORT
+REDIS_PASSWORD = _cfg.REDIS_PASSWORD
+REDIS_CACHE_TTL = _cfg.REDIS_CACHE_TTL
+BOOKS_DIR = _cfg.BOOKS_DIR
+CHROMA_DIR = _cfg.CHROMA_DIR
+MODELS_DIR = _cfg.MODELS_DIR
+ADAPTER_PATH = _cfg.ADAPTER_PATH
+BASE_MODEL_ID = _cfg.BASE_MODEL_ID
+EMBED_MODEL_ID = _cfg.EMBED_MODEL_ID
+CHROMA_COLLECTION = _cfg.CHROMA_COLLECTION
 
 # ── Safety ────────────────────────────────────────────────
 EMERGENCY_KEYWORDS = [
