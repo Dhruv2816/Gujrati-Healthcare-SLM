@@ -13,16 +13,15 @@ except ImportError:
     _FITZ_AVAILABLE = False
 
 
-def _extract_text_from_pdf(pdf_path: str, max_pages: int = 150) -> str:
+def _extract_text_from_pdf(pdf_path: str, start_page: int = 30, max_pages: int = 250) -> str:
     if not _FITZ_AVAILABLE:
         raise ImportError("PyMuPDF not installed. Run: pip install PyMuPDF")
     doc = fitz.open(pdf_path)
-    # Stop laptop crashing by reading only first 150 pages instead of 4000 pages
+    
     lines = []
-    for i, page in enumerate(doc):
-        if i >= max_pages: 
-            break
-        lines.append(page.get_text())
+    # Skip the 'Front Matter' (Title, Preface, TOC) which is usually the first 30-40 pages
+    for i in range(start_page, min(start_page + max_pages, len(doc))):
+        lines.append(doc[i].get_text())
     return "\n".join(lines)
 
 

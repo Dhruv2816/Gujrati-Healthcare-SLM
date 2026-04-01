@@ -73,13 +73,24 @@ class MedicalPipeline:
                 json={
                     "model": "gujarati_healthcare_ai",
                     "messages": [
-                        {"role": "system", "content": "You are a Professional Gujarati Healthcare Assistant. Follow the example below:\n\nExample User Question: 'મને તાવ છે'\nExample Assistant Answer: 'તમને તાવ છે તો આરામ કરો અને પુષ્કળ પાણી પીવો.'"},
-                        {"role": "user", "content": f"Medical Context: {context}\n\nUser Question: {query}\n\nGujarati Answer (Direct answer only, DO NOT repeat the question):"}
+                        {
+                            "role": "system", 
+                            "content": (
+                                "તમે એક 'ગુજરાતી હેલ્થકેર એસિસ્ટન્ટ' છો. તમારું કામ નીચે આપેલ માહિતીના આધારે સવાલનો જવાબ આપવાનું છે.\n\n"
+                                f"માહિતી:\n{context}\n\n"
+                                "નિયમો: (1) માત્ર ગુજરાતીમાં જવાબ આપો, (2) સવાલ કે માહિતી ફરીથી ન લખો, (3) જો માહિતી ન હોય તો ડૉક્ટરની સલાહ લેવા માટે કહો."
+                            )
+                        },
+                        {
+                            "role": "user", 
+                            "content": f"સવાલ: {query}\n\nજવાબ:"
+                        }
                     ],
                     "stream": False,
                     "options": {
                         "temperature": 0.1,
-                        "stop": ["Question:", "સવાલ:", "Context:"],
+                        "top_p": 0.9,
+                        "stop": ["સવાલ:", "માહિતી:", "Question:", "Information:", "<|im_end|>"],
                         "num_predict": max_new_tokens
                     }
                 }

@@ -119,51 +119,69 @@ class GraphRAGRetriever:
 def _build_context(vector_results: list[dict], kg_results: dict, entities) -> str:
     parts = []
 
-    # Extract target english keywords (diseases, symptoms, drugs) from user Gujarati query
-    target_keywords = set()
+    # 1. Smarter keyword extraction for filtering
+    # We want to match BOTH the canonical English name AND any Gujarati variant found in the maps
+    from src.kg.entity_extractor import DISEASES_MAP, SYMPTOMS_MAP, DRUGS_MAP
+    
+    search_keywords = set()
+    # Add canonical English names
     for lst in [entities.diseases, entities.symptoms, entities.drugs]:
-        if lst:
-            target_keywords.update([kw.lower() for kw in lst])
+        if lst: search_keywords.update([kw.lower() for kw in lst])
+    
+    # Add raw Gujarati names from the inverse maps for better coverage in Gujarati books
+    all_maps = {**DISEASES_MAP, **SYMPTOMS_MAP, **DRUGS_MAP}
+    for gu_kw, en_val in all_maps.items():
+        if en_val in search_keywords:
+            search_keywords.add(gu_kw.lower())
 
-    # Filter vector passages strictly so we DON'T feed garbage/unrelated context to the LLM
+    # 2. Filter vector passages
     valid_vectors = []
     if vector_results:
         for r in vector_results:
             text_lower = r['text'].lower()
-            # Strict verification: chunk must contain the keyword, or if no keyword found, we pass them anyway
-            if not target_keywords or any(kw in text_lower for kw in target_keywords):
+            # Verify: chunk must contain any of our keywords
+            if not search_keywords or any(kw in text_lower for kw in search_keywords):
                 valid_vectors.append(r)
 
-    # FALLBACK: If strict filter yields nothing, take the top 2 semantic results anyway
-    # to avoid giving the LLM 'Empty Context' which leads to echoing.
+    # Fallback if filter is too strict
     if not valid_vectors and vector_results:
         valid_vectors = vector_results[:2]
 
+    # 3. Format Part 1: Medical Passages
+    text_parts = []
     if valid_vectors:
-        parts.append("માહિતી (Medical Info):")
         valid_count = 0
         for r in valid_vectors:
-            # Skip TOC/Index garbage with dots like (. . . .) or too short
-            if ". . ." in r['text'] or r['text'].count('.') > 15:
+            text = r['text'].strip()
+            # AGGRESSIVE GARBAGE FILTER:
+            # Skip if it contains copyright notices, too many dots (index), or page numbers only
+            garbage_keywords = ["copyright", "all rights reserved", "printed in the", "isbn", "editorial", "index", "table of contents"]
+            if any(gk in text.lower() for gk in garbage_keywords):
                 continue
-            parts.append(f"- {r['text'][:400]}")
+            if ". . ." in text or text.count('.') > 15 or len(text) < 100:
+                continue
+            
+            text_parts.append(text)
             valid_count += 1
-            if valid_count >= 2: break
+            if valid_count >= 3: break
+    
+    if text_parts:
+        parts.append("પુસ્તકની માહિતી (Medical Textbook Info):")
+        for p in text_parts:
+            parts.append(f"- {p}")
 
-    # KG structured facts
+    # 4. Format Part 2: Graph Facts
     if kg_results:
         kg_data = []
         if kg_results.get("possible_diseases"):
-            kg_data.append(f"Diseases: {', '.join(kg_results['possible_diseases'][:5])}")
+            kg_data.append(f"સંભવિત બીમારીઓ: {', '.join(kg_results['possible_diseases'][:5])}")
         if kg_results.get("suggested_drugs"):
-            kg_data.append(f"Drugs: {', '.join(kg_results['suggested_drugs'][:5])}")
+            kg_data.append(f"ભલામણ કરેલ દવાઓ: {', '.join(kg_results['suggested_drugs'][:5])}")
         if kg_results.get("symptoms"):
-            kg_data.append(f"Symptoms: {', '.join(kg_results['symptoms'][:5])}")
+            kg_data.append(f"લક્ષણો: {', '.join(kg_results['symptoms'][:5])}")
         
         if kg_data:
-            parts.append("GRAPH KNOWLEDGE:")
+            parts.append("ગ્રાફ માહિતી (Graph Knowledge):")
             parts.append("\n".join(kg_data))
 
-    return (
-        "\n\n".join(parts) if parts else "No relevant context found."
-    )
+    return "\n\n".join(parts) if parts else "કોઈ સચોટ માહિતી મળી નથી." # No relevant info found

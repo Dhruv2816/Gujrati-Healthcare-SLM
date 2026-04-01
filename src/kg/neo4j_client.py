@@ -97,6 +97,16 @@ class Neo4jClient:
         with self._driver.session() as s:
             result = s.run(query, name=entity_name.lower().strip())
             for record in result:
+                # ❶ Add starting node labels to correct list
+                start_node = record["n"]
+                labels_n = list(start_node.labels)
+                name_n = start_node.get("name", "")
+                if "Disease" in labels_n: diseases.append(name_n)
+                elif "Drug" in labels_n: drugs.append(name_n)
+                elif "Symptom" in labels_n: symptoms.append(name_n)
+                elif "Treatment" in labels_n: treatments.append(name_n)
+
+                # ❷ Add related nodes
                 related = record["related"]
                 labels = list(related.labels)
                 node_name = related.get("name", "")
@@ -113,11 +123,11 @@ class Neo4jClient:
 
         return {
             "matched_entities": [entity_name],
-            "possible_diseases": list(set(diseases)),
-            "suggested_drugs": list(set(drugs)),
-            "symptoms": list(set(symptoms)),
-            "suggested_treatments": list(set(treatments)),
-            "relationship_types": list(set(relationships)),
+            "possible_diseases": list(dict.fromkeys(diseases)),
+            "suggested_drugs": list(dict.fromkeys(drugs)),
+            "symptoms": list(dict.fromkeys(symptoms)),
+            "suggested_treatments": list(dict.fromkeys(treatments)),
+            "relationship_types": list(dict.fromkeys(relationships)),
         }
 
     def search_entities(self, keyword: str, limit: int = 10) -> list[dict]:
