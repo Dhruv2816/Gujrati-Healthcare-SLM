@@ -93,11 +93,19 @@ class MedicalPipeline:
                         "stop": ["સવાલ:", "માહિતી:", "Question:", "Information:", "<|im_end|>"],
                         "num_predict": max_new_tokens
                     }
-                }
+                },
+                timeout=30.0
             )
-            answer_text = response.json().get("message", {}).get("content", "⚠️ Error generating response.").strip()
+            response.raise_for_status() # Catch 404s/500s directly
+            rj = response.json()
+            if "error" in rj:
+                answer_text = f"⚠️ Ollama Model Error: {rj['error']}"
+            else:
+                answer_text = rj.get("message", {}).get("content", "⚠️ Error generating response.").strip()
+        except requests.exceptions.RequestException as e:
+            answer_text = f"⚠️ Ollama Connection Error: Verify Ollama is running (`ollama serve`) and the model exists. Details: {str(e)}"
         except Exception as e:
-            answer_text = f"Ollama API Error: {str(e)} - Make sure Ollama daemon is running locally."
+            answer_text = f"⚠️ Unknown LLM Error: {str(e)}"
 
         result = {
             "query": query,

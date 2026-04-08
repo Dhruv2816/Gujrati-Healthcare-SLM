@@ -12,6 +12,13 @@ from src.cache.redis_client import RedisClient
 
 def is_emergency(query: str) -> bool:
     q = query.lower()
+    
+    # Simple negation check
+    negations = [" નથી", "નો", "ના", "not ", "no ", "don't"]
+    if any(neg in q for neg in negations):
+        # If there's a strong negation, we likely shouldn't trigger an emergency panic
+        return False
+        
     for kw in EMERGENCY_KEYWORDS:
         # If it's a phrase, check if all words are present (more robust for Gujarati)
         words = kw.lower().split()
@@ -119,39 +126,11 @@ class GraphRAGRetriever:
 def _build_context(vector_results: list[dict], kg_results: dict, entities) -> str:
     parts = []
 
-    # 1. Smarter keyword extraction for filtering
-    # We want to match BOTH the canonical English name AND any Gujarati variant found in the maps
-    from src.kg.entity_extractor import DISEASES_MAP, SYMPTOMS_MAP, DRUGS_MAP
-    
-    search_keywords = set()
-    # Add canonical English names
-    for lst in [entities.diseases, entities.symptoms, entities.drugs]:
-        if lst: search_keywords.update([kw.lower() for kw in lst])
-    
-    # Add raw Gujarati names from the inverse maps for better coverage in Gujarati books
-    all_maps = {**DISEASES_MAP, **SYMPTOMS_MAP, **DRUGS_MAP}
-    for gu_kw, en_val in all_maps.items():
-        if en_val in search_keywords:
-            search_keywords.add(gu_kw.lower())
-
-    # 2. Filter vector passages
-    valid_vectors = []
-    if vector_results:
-        for r in vector_results:
-            text_lower = r['text'].lower()
-            # Verify: chunk must contain any of our keywords
-            if not search_keywords or any(kw in text_lower for kw in search_keywords):
-                valid_vectors.append(r)
-
-    # Fallback if filter is too strict
-    if not valid_vectors and vector_results:
-        valid_vectors = vector_results[:2]
-
-    # 3. Format Part 1: Medical Passages
+    # Format Part 1: Medical Passages (Trust dense semantic search)
     text_parts = []
-    if valid_vectors:
+    if vector_results:
         valid_count = 0
-        for r in valid_vectors:
+        for r in vector_results:
             text = r['text'].strip()
             # AGGRESSIVE GARBAGE FILTER:
             # Skip if it contains copyright notices, too many dots (index), or page numbers only
